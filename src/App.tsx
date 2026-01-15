@@ -1,15 +1,12 @@
-import { SequenceConnect } from '@0xsequence/connect'
-import { SequenceWalletProvider } from '@0xsequence/wallet-widget'
+import { SequenceConnect } from "@0xsequence/connect";
 
-import { config } from './config'
-import { WalletExperience } from './components/WalletExperience'
+import { config } from "./config";
+import { WalletExperience } from "./components/WalletExperience";
 
 export const App = () => (
   <SequenceConnect config={config}>
-    <SequenceWalletProvider>
-      <WalletExperience />
-    </SequenceWalletProvider>
+    <WalletExperience />
   </SequenceConnect>
-)
+);
 
-export default App
+export default App;
