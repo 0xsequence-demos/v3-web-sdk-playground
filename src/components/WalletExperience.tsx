@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { useOpenConnectModal, useWallets } from "@0xsequence/connect";
+import {
+  useOpenConnectModal,
+  useSendWalletTransaction,
+  useWallets,
+} from "@0xsequence/connect";
 import {
   useChainId,
   useChains,
   usePublicClient,
   useSwitchChain,
   useWalletClient,
-  useWriteContract,
 } from "wagmi";
-import { networks } from "../config";
+import { encodeFunctionData } from "viem";
+
 import {
   Wallet,
   Send,
@@ -53,10 +57,14 @@ export const WalletExperience = () => {
   const { wallets, setActiveWallet, disconnectWallet } = useWallets();
   const { setOpenConnectModal } = useOpenConnectModal();
   const { data: walletClient } = useWalletClient();
+  const {
+    sendTransactionAsync,
+    isLoading: isSendingTransaction,
+    reset: resetSendTransaction,
+  } = useSendWalletTransaction();
   const chains = useChains();
   const chainId = useChainId();
   const publicClient = usePublicClient({ chainId });
-  const { writeContractAsync, isPending: isMinting } = useWriteContract();
   const {
     switchChain,
     status: switchStatus,
@@ -79,7 +87,8 @@ export const WalletExperience = () => {
     setIsSignatureValid(undefined);
     setSignError(undefined);
     setTxStatus(undefined);
-  }, [activeWallet?.address, chainId]);
+    resetSendTransaction();
+  }, [activeWallet?.address, chainId, resetSendTransaction]);
 
   const handleConnect = () => setOpenConnectModal(true);
 
@@ -123,8 +132,13 @@ export const WalletExperience = () => {
   };
 
   const runMintNFT = async () => {
-    if (!walletClient) {
+    if (!activeWallet?.address) {
       setTxStatus("Connect a wallet first.");
+      return;
+    }
+
+    if (!chainId) {
+      setTxStatus("No active chain selected.");
       return;
     }
 
@@ -135,17 +149,17 @@ export const WalletExperience = () => {
 
     try {
       setTxStatus("Minting NFT...");
-      const [account] = await walletClient.getAddresses();
-      if (!account) {
-        setTxStatus("No wallet address available.");
-        return;
-      }
-
-      const hash = await writeContractAsync({
-        address: mintContractAddress,
+      const data = encodeFunctionData({
         abi: awardAbi,
         functionName: "awardItem",
-        args: [account as `0x${string}`, demoTokenUri],
+        args: [activeWallet.address as `0x${string}`, demoTokenUri],
+      });
+      const hash = await sendTransactionAsync({
+        chainId,
+        transaction: {
+          to: mintContractAddress,
+          data,
+        },
       });
 
       setTxStatus(hash ? `Submitted: ${hash}` : "Transaction sent");
@@ -167,7 +181,7 @@ export const WalletExperience = () => {
                 transactions in a simple testbed.
               </p>
               <div className="chip-row">
-                <span className="chip">{networks.length} chains</span>
+                <span className="chip">{chains.length} chains</span>
                 <span className="chip">Multiple concurrent wallets</span>
               </div>
             </div>
@@ -406,10 +420,10 @@ export const WalletExperience = () => {
                 <button
                   className="btn secondary"
                   onClick={runMintNFT}
-                  disabled={isMinting || !mintChainOkForMint}
+                  disabled={isSendingTransaction || !mintChainOkForMint}
                   style={{ marginTop: 12, width: "100%" }}
                 >
-                  {isMinting ? "Minting..." : "Mint NFT"}
+                  {isSendingTransaction ? "Minting..." : "Mint NFT"}
                 </button>
 
                 {txStatus && (
